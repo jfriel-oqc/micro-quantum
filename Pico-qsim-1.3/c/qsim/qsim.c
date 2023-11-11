@@ -11,6 +11,11 @@
 #include "hardware/structs/systick.h"
 
 
+uint8_t circuit_width = 12;
+uint8_t circuit_depth = 4;
+int circuit_number = 1;
+int delay_interval = 1500;
+
 char bin_strs[16][5] = {
     "0000",
     "0001",
@@ -43,6 +48,18 @@ char help_gates[10][65] = {
     "must be paired"
 };
 
+char s_q_gates[5][1] = {
+    "-",
+    "H",
+    "X",
+    "R",
+    "V",
+};
+
+char t_q_gates[2][1] = {
+    "x",
+    "c"	    
+};
 
 /* set address */
 bool reserved_addr(uint8_t addr) {
@@ -83,36 +100,86 @@ void draw_help_gates(uint16_t* BlackImage) {
 
 void draw_circuit(char circuit[14][4][8], uint16_t* BlackImage)
 {
+    int down_offset = 50;
+    int across_offset = 30;
+    // TODO: properly center the across offset
     Paint_Clear(WHITE);
-    for (int i = 0; i < 14; i++)
+    for (int i = 0; i < circuit_width; i++)
     {
-        for (int j = 0; j < 4; j++)
+        for (int j = 0; j < circuit_depth; j++)
         {
-            Paint_DrawString_EN(i*16, j*20, circuit[i][j], &Font20, WHITE, BLACK);
+            Paint_DrawString_EN(i*16+across_offset, j*20+down_offset, circuit[i][j], &Font20, WHITE, BLACK);
         }
     }
     char buff_instr[64];
-    sprintf(buff_instr, "Move around: U/D/L/R");
-    Paint_DrawString_EN(0,90,buff_instr,&Font16, WHITE, BLACK);
-    sprintf(buff_instr, "Change gate: push");
-    Paint_DrawString_EN(0,110,buff_instr,&Font16, WHITE, BLACK);
-    sprintf(buff_instr, "Run circuit:   A");
-    Paint_DrawString_EN(0,130,buff_instr,&Font16, WHITE, BLACK);
-    sprintf(buff_instr, "Clear circuit: B");
-    Paint_DrawString_EN(0,150,buff_instr,&Font16, WHITE, BLACK);
-    sprintf(buff_instr, "Gate Details:  X");
-    Paint_DrawString_EN(0,170,buff_instr,&Font16, WHITE, BLACK);
-    sprintf(buff_instr, "Run Sims:      Y");
-    Paint_DrawString_EN(0,190,buff_instr,&Font16, WHITE, BLACK);
+    sprintf(buff_instr, "Circuit Number: %i", circuit_number);
+    Paint_DrawString_EN(across_offset,190,buff_instr,&Font16, WHITE, BLACK);
     //LCD_1IN14_Display(BlackImage);
     LCD_1IN3_Display(BlackImage);
 }
 
-void init_circuit(char circuit[14][4][8])
-{
-    for (int i = 0; i < 14; i++)
+void random_circuit(char circuit[circuit_width][circuit_depth][8]){
+    for (int i = 0; i < circuit_width; i++)
     {
-        for (int j = 0; j < 4; j++)
+	if (i%2==0){
+
+	    for (int j = 0; j < circuit_depth; j++)
+	    {
+		int rand_gate_index = rand() % 5;
+				
+		// single qubit chunk
+		// strcpy(circuit[i][j], s_q_gates[rand_gate_index]);
+		switch (rand_gate_index){
+		    case 0:
+			strcpy(circuit[i][j], "X");
+			break;
+		    case 1:
+			strcpy(circuit[i][j], "R");
+			break;
+	            case 2:
+		        strcpy(circuit[i][j], "H");
+			break;
+		    case 3:
+		        strcpy(circuit[i][j], "V");
+			break;
+		    case 4:
+		        strcpy(circuit[i][j], "-");	
+			break;
+		    default:
+			strcpy(circuit[i][j], "-");
+			break;
+		
+		}
+	    }
+	}
+	else {
+		int rand_2q_gate = rand() % 2;
+		// 2q chunk
+	    int first_index = rand() % 3;
+	    int second_index = first_index + (rand() % (4 + - first_index -1 ) + 1 );
+		    
+		if (rand_2q_gate==0){
+		    // cx gate
+	            strcpy(circuit[i][first_index], "c");
+		    strcpy(circuit[i][second_index], "X");
+		}else{
+		    strcpy(circuit[i][first_index], "x");
+		    strcpy(circuit[i][second_index], "x");
+		
+		}
+		// strcpy(circuit[i][0], "c");
+		// strcpy(circuit[i][3], "X");
+	}
+	DEV_Delay_ms(0.5);
+    }
+
+}
+
+void init_circuit(char circuit[circuit_width][circuit_depth][8])
+{
+    for (int i = 0; i < circuit_width; i++)
+    {
+        for (int j = 0; j < circuit_depth; j++)
         {
             strcpy(circuit[i][j], "-");
         }
@@ -187,22 +254,7 @@ void draw_results(double complex stateVec[16], UWORD* BlackImage)
     uint8_t keyB = 17;
     uint8_t keyX = 19;
     uint8_t keyY = 21;
-    while(1)
-    {
-        if(DEV_Digital_Read(keyA) == 0){
-            return;
-        }
-        if(DEV_Digital_Read(keyB) == 0){
-            return;
-        }
-        if(DEV_Digital_Read(keyX) == 0){
-            return;
-        }
-        if(DEV_Digital_Read(keyY) == 0){
-            return;
-        }
-
-    }
+    DEV_Delay_ms(delay_interval);
     return;
 }
 
@@ -345,83 +397,31 @@ int qsim(void)
 
     // setup entanglement circuit
     strcpy(circuit[0][0], "H");
-    strcpy(circuit[0][2], "H");
-    strcpy(circuit[0][3], "H");
     strcpy(circuit[1][0], "c");
     strcpy(circuit[1][1], "X");
-    strcpy(circuit[2][0], "R");
-    strcpy(circuit[3][0], "V");
+    strcpy(circuit[2][1], "c");
+    strcpy(circuit[2][2], "X");
     strcpy(circuit[3][2], "c");
-    strcpy(circuit[4][0], "V");
-    strcpy(circuit[4][3], "c");
+    strcpy(circuit[3][3], "X");
 
     while(1)
     {
-        if(DEV_Digital_Read(right) == 0){
-            cursor_x += 1;
-            if(cursor_x > 13){
-                cursor_x = 0;
-            }
-        }
-        if(DEV_Digital_Read(left) == 0){
-            cursor_x -= 1;
-            if(cursor_x < 0){
-                cursor_x = 13;
-            }
-        }
-        if(DEV_Digital_Read(dowm) == 0){
-            cursor_y += 1;
-            if(cursor_y > 3){
-                cursor_y = 3;
-            }
-        }
-        if(DEV_Digital_Read(up) == 0){
-            cursor_y -= 1;
-            if(cursor_y < 0){
-                cursor_y = 0;
-            }
-        }
-        if(DEV_Digital_Read(ctrl) == 0){
-            next_gate(circuit[cursor_x][cursor_y]);
-        }
-        if(DEV_Digital_Read(keyA) == 0){
-            // do measurement! 
-            measure(circuit, stateVec);
-            draw_results(stateVec, BlackImage);
-            //reset the stateVec
-            //for (int i = 0; i < 16; i++)
-            //{
-            //    stateVec[i] = 0;
-            //}
-            //stateVec[0] = 1;
-        }
-        if(DEV_Digital_Read(keyB) == 0){
-            init_circuit(circuit);
-        }
-        if(DEV_Digital_Read(keyX) == 0){
-            draw_help_gates(BlackImage);
-        }
-        if(DEV_Digital_Read(keyY) == 0){
-            // get updated SV from circuit
-            measure(circuit, stateVec);
-            // run a simulation!
-            uint8_t res[8] = {0};
-            uint32_t startTime = time_us_64();
-            simulate(stateVec, res);
-            uint32_t endTime =  time_us_64();
-            uint32_t time_diff = endTime - startTime;
-            draw_sim_results(res, time_diff, BlackImage);
-        }
-        // Display the current state
-        // populating a screen in a 4 x 4 grid
-        // 14 pxwide, 16px high. 
+	random_circuit(circuit);
+        DEV_Delay_ms(1000);
+
+	measure(circuit, stateVec);
+	draw_results(stateVec, BlackImage);
+	circuit_number += 1;
+
+
+	init_circuit(circuit);
+	random_circuit(circuit);
         draw_circuit(circuit, BlackImage);
 
-        // TODO cursor stuff
-        Paint_DrawString_EN(cursor_x*16, cursor_y*20, circuit[cursor_x][cursor_y], &Font20, BLACK, WHITE);
         //LCD_1IN14_Display(BlackImage);
         LCD_1IN3_Display(BlackImage);
-        DEV_Delay_ms(50);
+	DEV_Delay_ms(delay_interval);
+
     }
 
     /* Module Exit */
